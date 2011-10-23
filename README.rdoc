@@ -1,6 +1,6 @@
 = teamcity-rest-client
 
-Description goes here.
+Teamcity rest api client (readonly)
 
 == Contributing to teamcity-rest-client
  
