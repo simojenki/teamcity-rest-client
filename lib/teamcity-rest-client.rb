@@ -23,6 +23,41 @@ module TeamcityRestClient
     end
   end
 
+  class HttpBasicAuthentication
+    def initialize host, port, user, password
+      @host, @port, @user, @password = host, port, user, password
+    end
+
+    def get path
+      open(url(path), :http_basic_authentication => [@user, @password]).read
+    end
+
+    def url path
+      "http://#{@host}:#{@port}/httpAuth#{path}"
+    end  
+    
+    def to_s
+      "HttpBasicAuthentication #{@user}:#{@password}"
+    end
+  end
+
+  class Open
+    def initialize host, port
+      @host, @port = host, port
+    end
+
+    def get path
+      open(url(path)).read
+    end
+
+    def url path
+      "http://#{@host}:#{@port}#{path}"
+    end
+    
+    def to_s
+      "No Authentication"
+    end
+  end
 end
 
 class REXML::Element
@@ -33,10 +68,15 @@ end
 
 class Teamcity
   
-  attr_reader :host, :port, :user, :password
+  attr_reader :host, :port, :authentication
   
   def initialize host, port, user = nil, password = nil
-    @host, @port, @user, @password = host, port, user, password
+    @host, @port = host, port
+    if user != nil && password != nil
+      @authentication = TeamcityRestClient::HttpBasicAuthentication.new host, port, user, password
+    else
+      @authentication = TeamcityRestClient::Open.new host, port
+    end
   end
   
   def project spec
@@ -47,37 +87,37 @@ class Teamcity
   end
   
   def projects
-    doc(get(url('/app/rest/projects'))).elements.collect('//project') do |e| 
+    doc(get('/app/rest/projects')).elements.collect('//project') do |e| 
       TeamcityRestClient::Project.new(self, e.att("name"), e.att("id"), url(e.att("href")))
     end
   end
   
   def build_types
-    doc(get(url('/app/rest/buildTypes'))).elements.collect('//buildType') do |e| 
+    doc(get('/app/rest/buildTypes')).elements.collect('//buildType') do |e| 
       TeamcityRestClient::BuildType.new(e.att("id"), e.att("name"), url(e.att("href")), e.att('projectName'), e.att('projectId'), e.att('webUrl'))
     end
   end
   
   def builds
-    doc(get(url('/app/rest/builds')).gsub(/&buildTypeId/,'&amp;buildTypeId')).elements.collect('//build') do |e|
+    doc(get('/app/rest/builds').gsub(/&buildTypeId/,'&amp;buildTypeId')).elements.collect('//build') do |e|
       TeamcityRestClient::Build.new(e.att('id'), e.att('number'), e.att('status').to_sym, e.att('buildTypeId'), e.att('startDate'), url(e.att('href')), e.att('webUrl'))
     end
   end
-
-  def url path
-    if user != nil && password != nil
-      "http://#{user}:#{password}@#{host}:#{port}#{path}"
-    else
-      "http://#{host}:#{port}#{path}"
-    end
-  end
   
+  def to_s
+    "Teamcity @ http://#{host}:#{port}"
+  end
+
   private
   def doc string
     REXML::Document.new string
   end
+
+  def get path
+    @authentication.get(path)
+  end
   
-  def get url
-    open(url).read
+  def url path
+    @authentication.url(path)
   end
 end

@@ -10,3 +10,7 @@ Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
 RSpec.configure do |config|
   
 end
+
+def sample_xml name
+  File.open("#{File.dirname(__FILE__)}/samples/#{name}.xml").read
+end

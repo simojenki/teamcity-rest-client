@@ -1,51 +1,117 @@
 require_relative 'spec_helper'
 
-describe TeamcityRestClient::Project do
-  before :each do
-    @bt11 = stub('bt11', :id => "bt11", :name => "project1-build1", :project_id => "project1")
-    @bt12 = stub('bt12', :id => "bt12", :name => "project1-build2", :project_id => "project1")
-    @bt21 = stub('bt21', :id => "bt21", :name => "project2-build1", :project_id => "project2")
+module TeamcityRestClient
+  
+  describe Project do
+    before :each do
+      @bt11 = stub('bt11', :id => "bt11", :name => "project1-build1", :project_id => "project1")
+      @bt12 = stub('bt12', :id => "bt12", :name => "project1-build2", :project_id => "project1")
+      @bt21 = stub('bt21', :id => "bt21", :name => "project2-build1", :project_id => "project2")
     
-    @bt11_1 = stub('bt11_1', :id => "1", :build_type_id => "bt11")
-    @bt11_2 = stub('bt11_2', :id => "2", :build_type_id => "bt11")
-    @bt12_33 = stub('bt12_33', :id => "33", :build_type_id => "bt12")
-    @bt21_666 = stub('bt21_666', :id => "666", :build_type_id => "bt21")
+      @bt11_1 = stub('bt11_1', :id => "1", :build_type_id => "bt11")
+      @bt11_2 = stub('bt11_2', :id => "2", :build_type_id => "bt11")
+      @bt12_33 = stub('bt12_33', :id => "33", :build_type_id => "bt12")
+      @bt21_666 = stub('bt21_666', :id => "666", :build_type_id => "bt21")
     
-    @tc = stub('teamcity', :build_types => [@bt11, @bt12, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt21_666])
-    @project1 = TeamcityRestClient::Project.new @tc, "Project 1", "project1", "http://www.example.com"
+      @tc = stub('teamcity', :build_types => [@bt11, @bt12, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt21_666])
+      @project1 = Project.new @tc, "Project 1", "project1", "http://www.example.com"
+    end
+  
+    describe "asking it for it's build types" do
+      before :each do
+        @build_types = @project1.build_types
+      end
+    
+      it "should have only those for project 1" do
+        @build_types.should == [@bt11, @bt12]
+      end
+    end
+  
+    describe "asking it for it's builds" do
+      before :each do
+        @builds = @project1.builds
+      end
+    
+      it "should have only builds for project 1" do
+        @builds.should == [@bt11_1, @bt11_2, @bt12_33]
+      end
+    end
+  end
+
+  describe HttpBasicAuthentication do
+    before :each do
+      @host, @port, @user, @password = "auth.example.com", 2233, "john", "wayne"
+      @auth = HttpBasicAuthentication.new @host, @port, @user, @password
+      @io = stub(:read => "<xml/>")
+    end
+    
+    describe "url" do
+      it "should add /httpAuth to path" do
+        @auth.url("/something").should == "http://auth.example.com:2233/httpAuth/something"
+      end
+    end
+    
+    describe "get" do
+      it "should call open with http basic auth options" do
+        @auth.should_receive(:open).with("http://auth.example.com:2233/httpAuth/somethingElse", :http_basic_authentication=>[@user, @password]).and_return(@io)
+        @auth.get("/somethingElse")
+      end
+    end
   end
   
-  describe "asking it for it's build types" do
+  describe Open do
     before :each do
-      @build_types = @project1.build_types
+      @host, @port = "auth.example.com", 2233
+      @auth = Open.new @host, @port
+      @io = stub(:read => "<xml/>")
     end
     
-    it "should have only those for project 1" do
-      @build_types.should == [@bt11, @bt12]
-    end
-  end
-  
-  describe "asking it for it's builds" do
-    before :each do
-      @builds = @project1.builds
+    describe "url" do
+      it "should create valid url" do
+        @auth.url("/something").should == "http://auth.example.com:2233/something"
+      end
     end
     
-    it "should have only builds for project 1" do
-      @builds.should == [@bt11_1, @bt11_2, @bt12_33]
+    describe "get" do
+      it "should call open with no auth options" do
+        @auth.should_receive(:open).with("http://auth.example.com:2233/somethingElse").and_return(@io)
+        @auth.get("/somethingElse")
+      end
     end
   end
+
 end
 
 describe Teamcity do
-  describe "using basic http authentication" do
+  before :all do
+    @sample_projects_xml = sample_xml "projects"
+    @sample_builds_xml = sample_xml "builds"
+    @sample_build_types_xml = sample_xml "buildTypes"
+  end
+  
+  describe "specifying username and password" do
     before :each do
-      @user = "bob"
-      @password = "marley"
-      @tc = Teamcity.new "authtc.example.com", 9999, @user, @password
+      @host, @port, @user, @password = "authtc.example.com", 8877, "bob", "marley"
+      @authentication = mock('authentication')
+      TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).with(@host, @port, @user, @password).and_return(@authentication)
+      @tc = Teamcity.new @host, @port, @user, @password
     end
     
-    it "should create a valid url to /something" do
-      @tc.url("/something").should == "http://bob:marley@authtc.example.com:9999/something"
+    it "should create HttpBasicAuthetication" do
+      @tc.authentication.should === @authentication
+    end
+  end
+
+  describe "specifying no username and password" do
+    before :each do
+      @host, @port = "authtc.example.com", 8877
+      @authentication = mock('authentication')
+      TeamcityRestClient::Open.should_receive(:new).with(@host, @port).and_return(@authentication)
+      @tc = Teamcity.new @host, @port
+    end
+    
+    it "should create HttpBasicAuthetication" do
+      @tc.authentication.should === @authentication
     end
   end
   
@@ -85,7 +151,8 @@ describe Teamcity do
   
   describe "parsing xml feeds" do
     before :each do
-      @tc = Teamcity.new "tc.example.com", 1234
+      @host, @port = "tc.example.com", 1234
+      @authentication = TeamcityRestClient::Open.new @host, @port
     end
     
     describe "projects" do
@@ -97,7 +164,9 @@ describe Teamcity do
   <project name="Apache Ant" id="project28" href="/app/rest/projects/id:project28"/>
 </projects>        
 XML
-        @tc.should_receive(:open).with("http://tc.example.com:1234/app/rest/projects").and_return(stub(:read => xml))
+        @authentication.should_receive(:get).with("/app/rest/projects").and_return(xml)
+        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+        @tc = Teamcity.new @host, @port
         @projects = @tc.projects
       end
       
@@ -131,7 +200,9 @@ XML
     projectName="Amazon API client" projectId="project54" webUrl="http://teamcity.jetbrains.com/viewType.html?buildTypeId=bt296"/>
 </buildTypes>      
 XML
-        @tc.should_receive(:open).with("http://tc.example.com:1234/app/rest/buildTypes").and_return(stub(:read => xml))
+        @authentication.should_receive(:get).with("/app/rest/buildTypes").and_return(xml)
+        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+        @tc = Teamcity.new @host, @port
         @build_types = @tc.build_types
       end
       
@@ -171,7 +242,9 @@ XML
     webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"/>
 </builds>
 XML
-        @tc.should_receive(:open).with("http://tc.example.com:1234/app/rest/builds").and_return(stub(:read => xml))
+        @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
+        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+        @tc = Teamcity.new @host, @port
         @builds = @tc.builds
       end
       
