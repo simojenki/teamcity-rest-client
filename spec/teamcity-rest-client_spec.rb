@@ -37,6 +37,18 @@ describe TeamcityRestClient::Project do
 end
 
 describe Teamcity do
+  describe "using basic http authentication" do
+    before :each do
+      @user = "bob"
+      @password = "marley"
+      @tc = Teamcity.new "authtc.example.com", 9999, @user, @password
+    end
+    
+    it "should create a valid url to /something" do
+      @tc.url("/something").should == "http://bob:marley@authtc.example.com:9999/something"
+    end
+  end
+  
   describe "finding a specific project" do
     before :each do
       @tc = Teamcity.new "tc.example.com", 5678

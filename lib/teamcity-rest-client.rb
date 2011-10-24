@@ -33,10 +33,10 @@ end
 
 class Teamcity
   
-  attr_reader :host, :port
+  attr_reader :host, :port, :user, :password
   
-  def initialize host, port
-    @host, @port = host, port
+  def initialize host, port, user = nil, password = nil
+    @host, @port, @user, @password = host, port, user, password
   end
   
   def project spec
@@ -63,14 +63,18 @@ class Teamcity
       TeamcityRestClient::Build.new(e.att('id'), e.att('number'), e.att('status').to_sym, e.att('buildTypeId'), e.att('startDate'), url(e.att('href')), e.att('webUrl'))
     end
   end
+
+  def url path
+    if user != nil && password != nil
+      "http://#{user}:#{password}@#{host}:#{port}#{path}"
+    else
+      "http://#{host}:#{port}#{path}"
+    end
+  end
   
   private
   def doc string
     REXML::Document.new string
-  end
-  
-  def url path
-    "http://#{host}:#{port}#{path}"
   end
   
   def get url
