@@ -31,7 +31,8 @@ Gem::Specification.new do |s|
     "spec/samples/changes.xml",
     "spec/samples/projects.xml",
     "spec/spec_helper.rb",
-    "spec/teamcity-rest-client_spec.rb"
+    "spec/teamcity-rest-client_spec.rb",
+    "teamcity-rest-client.gemspec"
   ]
   s.homepage = "http://github.com/simojenki/teamcity-rest-client"
   s.licenses = ["MIT"]
