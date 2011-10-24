@@ -149,6 +149,28 @@ describe Teamcity do
     end
   end
   
+  describe "when authentication fails" do
+    before :each do
+      @host, @port = "fail.example.com", 1234
+      @authentication = TeamcityRestClient::Open.new @host, @port
+      TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+      fail_html = <<HTML
+
+      <!DOCTYPE html>
+      <html id="htmlId">
+      something
+      </html>  
+HTML
+      
+      @authentication.should_receive(:get).with("/app/rest/buildTypes").and_return(fail_html)
+      @tc = Teamcity.new @host, @port
+    end
+    
+    it "should raise an error" do
+      lambda { @tc.build_types }.should raise_error "Teamcity returned html, perhaps you need to use authentication??"
+    end
+  end
+  
   describe "parsing xml feeds" do
     before :each do
       @host, @port = "tc.example.com", 1234

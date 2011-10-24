@@ -114,7 +114,9 @@ class Teamcity
   end
 
   def get path
-    @authentication.get(path)
+    result = @authentication.get(path)
+    raise "Teamcity returned html, perhaps you need to use authentication??" if result =~ /.*<html.*<\/html>.*/im
+    result
   end
   
   def url path
