@@ -254,49 +254,83 @@ XML
     end
     
     describe "builds" do
-      before :each do
-        xml = <<XML
+      describe "TeamCity Enterprise 5.1.2" do
+          before :each do
+            xml = <<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <builds nextHref="/app/rest/builds?count=100&amp;start=100" count="100">
-  <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" startDate="20111021T123714+0400" href="/app/rest/builds/id:56264" 
-    webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"/>
-  <build id="56262" number="568" status="SUCCESS" buildTypeId="bt213" startDate="20111021T120639+0400" href="/app/rest/builds/id:56262" 
-    webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"/>
+    <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" href="/app/rest/builds/id:56264" 
+      webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"/>
 </builds>
 XML
-        @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
-        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
-        @tc = Teamcity.new @host, @port
-        @builds = @tc.builds
+            @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
+            TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+            @tc = Teamcity.new @host, @port
+            @builds = @tc.builds
+          end
+
+          it "should have 1" do
+            @builds.length.should == 1
+          end
+
+          it "should have build 56264" do
+            build = @builds[0]
+            build.id.should == "56264"
+            build.number.should == "126"
+            build.status.should == :FAILURE
+            build.success?.should == false
+            build.build_type_id.should == "bt212"
+            build.start_date.should == ""
+            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56264"
+            build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"
+          end
       end
       
-      it "should have 2" do
-        @builds.length.should == 2
-      end
-      
-      it "should have build 56264" do
-        build = @builds[0]
-        build.id.should == "56264"
-        build.number.should == "126"
-        build.status.should == :FAILURE
-        build.success?.should == false
-        build.build_type_id.should == "bt212"
-        build.start_date.should == "20111021T123714+0400"
-        build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56264"
-        build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"
-      end
-      
-      it "should have build 56262" do
-        build = @builds[1]
-        build.id.should == "56262"
-        build.number.should == "568"
-        build.status.should == :SUCCESS
-        build.success?.should == true
-        build.build_type_id.should == "bt213"
-        build.start_date.should == "20111021T120639+0400"
-        build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56262"
-        build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"
-      end
+      describe "TeamCity Enterprise 6.5.4" do
+          before :each do
+            xml = <<XML
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<builds nextHref="/app/rest/builds?count=100&amp;start=100" count="100">
+    <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" startDate="20111021T123714+0400" href="/app/rest/builds/id:56264" 
+      webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"/>
+    <build id="56262" number="568" status="SUCCESS" buildTypeId="bt213" startDate="20111021T120639+0400" href="/app/rest/builds/id:56262" 
+      webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"/>
+</builds>
+XML
+            @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
+            TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
+            @tc = Teamcity.new @host, @port
+            @builds = @tc.builds
+          end
+
+          it "should have 2" do
+            @builds.length.should == 2
+          end
+
+          it "should have build 56264" do
+            build = @builds[0]
+            build.id.should == "56264"
+            build.number.should == "126"
+            build.status.should == :FAILURE
+            build.success?.should == false
+            build.build_type_id.should == "bt212"
+            build.start_date.should == "20111021T123714+0400"
+            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56264"
+            build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"
+          end
+
+          it "should have build 56262" do
+            build = @builds[1]
+            build.id.should == "56262"
+            build.number.should == "568"
+            build.status.should == :SUCCESS
+            build.success?.should == true
+            build.build_type_id.should == "bt213"
+            build.start_date.should == "20111021T120639+0400"
+            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56262"
+            build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"
+          end
+        end
     end
   end
 end

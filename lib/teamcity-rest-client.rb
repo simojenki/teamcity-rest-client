@@ -61,8 +61,13 @@ module TeamcityRestClient
 end
 
 class REXML::Element
-  def att name
+  def av name
     attribute(name).value
+  end
+  
+  def av_or name, otherwise
+    att = attribute(name) 
+    att ? att.value : otherwise
   end
 end
 
@@ -88,19 +93,19 @@ class Teamcity
   
   def projects
     doc(get('/app/rest/projects')).elements.collect('//project') do |e| 
-      TeamcityRestClient::Project.new(self, e.att("name"), e.att("id"), url(e.att("href")))
+      TeamcityRestClient::Project.new(self, e.av("name"), e.av("id"), url(e.av("href")))
     end
   end
   
   def build_types
     doc(get('/app/rest/buildTypes')).elements.collect('//buildType') do |e| 
-      TeamcityRestClient::BuildType.new(e.att("id"), e.att("name"), url(e.att("href")), e.att('projectName'), e.att('projectId'), e.att('webUrl'))
+      TeamcityRestClient::BuildType.new(e.av("id"), e.av("name"), url(e.av("href")), e.av('projectName'), e.av('projectId'), e.av('webUrl'))
     end
   end
   
   def builds
     doc(get('/app/rest/builds').gsub(/&buildTypeId/,'&amp;buildTypeId')).elements.collect('//build') do |e|
-      TeamcityRestClient::Build.new(e.att('id'), e.att('number'), e.att('status').to_sym, e.att('buildTypeId'), e.att('startDate'), url(e.att('href')), e.att('webUrl'))
+      TeamcityRestClient::Build.new(e.av('id'), e.av('number'), e.av('status').to_sym, e.av('buildTypeId'), e.av_or('startDate', ''), url(e.av('href')), e.av('webUrl'))
     end
   end
   
