@@ -11,35 +11,27 @@ module TeamcityRestClient
     def retain? thing
       true
     end
+    def misses
+      []
+    end
   end
   
   class ExcludeNoneFilter
     def retain? thing
       true
     end
+    def misses
+      []
+    end
   end
   
   class IncludeFilter
     def initialize to_retain
       @misses = [to_retain].flatten
-      @hits = []
     end
     
     def retain? build_type
-      puts "looking for match on #{build_type.id} or #{build_type.name} from includes #{@misses}"
-      match = @misses.delete(build_type.id) || @misses.delete(build_type.name)
-      if match
-        @hits << match
-        puts "hit with match #{match}"
-        true
-      else
-        puts "miss"
-        false
-      end
-    end
-    
-    def hits
-      @hits      
+      @misses.delete(build_type.id) || @misses.delete(build_type.name) ? true : false
     end
     
     def misses
@@ -50,21 +42,10 @@ module TeamcityRestClient
   class ExcludeFilter
     def initialize to_exclude
       @misses = [to_exclude].flatten
-      @hits = []
     end
     
     def retain? build_type
-      match = @misses.delete(build_type.id) || @misses.delete(build_type.name)
-      if match
-        @hits << match
-        false
-      else
-        true
-      end
-    end
-    
-    def hits
-      @hits      
+      @misses.delete(build_type.id) || @misses.delete(build_type.name) ? false : true
     end
     
     def misses
@@ -84,7 +65,10 @@ module TeamcityRestClient
       including = filter.has_key?(:include) ? IncludeFilter.new(filter.delete(:include)) : IncludeAllFilter.new
       excluding = filter.has_key?(:exclude) ? ExcludeFilter.new(filter.delete(:exclude)) : ExcludeNoneFilter.new
       build_types_for_project = teamcity.build_types.find_all { |bt| bt.project_id == id }
-      build_types_for_project.find_all { |bt| including.retain?(bt) && excluding.retain?(bt) }
+      filtered_build_types = build_types_for_project.find_all { |bt| including.retain?(bt) && excluding.retain?(bt) }
+      raise "Failed to find a match for build type(s) #{including.misses}" if not including.misses.empty?
+      raise "Failed to find a match for build type(s) #{excluding.misses}" if not excluding.misses.empty?
+      filtered_build_types
     end
     
     def latest_builds filter = {}

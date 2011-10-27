@@ -14,10 +14,11 @@ module TeamcityRestClient
         @filter = IncludeAllFilter.new
       end
 
-      it "should retain everything" do
+      it "should retain everything and have no misses" do
         @filter.retain?(@build_type_a).should be_true
         @filter.retain?(@build_type_b).should be_true
         @filter.retain?(@build_type_c).should be_true
+        @filter.misses.should be_empty
       end
     end
     
@@ -26,10 +27,11 @@ module TeamcityRestClient
         @filter = ExcludeNoneFilter.new
       end
 
-      it "should retain everything" do
+      it "should retain everything have no misses" do
         @filter.retain?(@build_type_a).should be_true
         @filter.retain?(@build_type_b).should be_true
         @filter.retain?(@build_type_c).should be_true
+        @filter.misses.should be_empty
       end
     end
     
@@ -63,11 +65,6 @@ module TeamcityRestClient
 
         it "should not retain when there is not a match" do
           @filter.retain?(@build_type_b).should be_false
-        end
-
-        it "should be able to report things that matched" do
-          @filter.retain?(@build_type_a)
-          @filter.hits.should == ["a"]
         end
 
         it "should be able to report things that didnt match" do
@@ -107,11 +104,6 @@ module TeamcityRestClient
 
         it "should retain when there is not a match" do
           @filter.retain?(@build_type_b).should be_true
-        end
-
-        it "should be able to report things that matched" do
-          @filter.retain?(@build_type_a)
-          @filter.hits.should == ["a"]
         end
 
         it "should be able to report things that didnt match" do
@@ -177,6 +169,18 @@ module TeamcityRestClient
       describe "include and exclude" do
         it "should allow both, but its a bit pointless" do
           @project1.build_types({ :include => ["bt11","project1-build2"], :exclude => ["bt11"]}).should == [@bt12]
+        end
+      end
+      
+      describe "when an include fails to match as incorrectly typed" do
+        it "should raise exception" do
+          lambda { @project1.build_types({ :include => ["bt11", "nonsense1", "nonsense2"]}) }.should raise_error 'Failed to find a match for build type(s) ["nonsense1", "nonsense2"]'
+        end
+      end
+      
+      describe "when an exclude fails to match as incorrectly typed" do
+        it "should raise exception" do
+          lambda { @project1.build_types({ :exclude => ["bt11", "nonsense1", "nonsense2"]}) }.should raise_error 'Failed to find a match for build type(s) ["nonsense1", "nonsense2"]'
         end
       end
     end
