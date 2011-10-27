@@ -174,7 +174,11 @@ module TeamcityRestClient
         end
       end
       
-      
+      describe "include and exclude" do
+        it "should allow both, but its a bit pointless" do
+          @project1.build_types({ :include => ["bt11","project1-build2"], :exclude => ["bt11"]}).should == [@bt12]
+        end
+      end
     end
     
     describe "asking it for it's builds" do
