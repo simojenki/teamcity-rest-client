@@ -64,6 +64,7 @@ module TeamcityRestClient
     def build_types filter = {}
       including = filter.has_key?(:include) ? IncludeFilter.new(filter.delete(:include)) : IncludeAllFilter.new
       excluding = filter.has_key?(:exclude) ? ExcludeFilter.new(filter.delete(:exclude)) : ExcludeNoneFilter.new
+      raise "Unsupported filter options #{filter}" unless filter.empty?
       build_types_for_project = teamcity.build_types.find_all { |bt| bt.project_id == id }
       filtered_build_types = build_types_for_project.find_all { |bt| including.retain?(bt) && excluding.retain?(bt) }
       raise "Failed to find a match for build type(s) #{including.misses}" if not including.misses.empty?
