@@ -2,18 +2,140 @@ require_relative 'spec_helper'
 
 module TeamcityRestClient
   
+  describe "filters" do
+    before :each do
+      @build_type_a = stub('build type a', :id => "bt1", :name => "a" )
+      @build_type_b = stub('build type b', :id => "bt2", :name => "b" )
+      @build_type_c = stub('build type c', :id => "bt3", :name => "c" )
+    end
+
+    describe IncludeAllFilter do
+      before :each do
+        @filter = IncludeAllFilter.new
+      end
+
+      it "should retain everything" do
+        @filter.retain?(@build_type_a).should be_true
+        @filter.retain?(@build_type_b).should be_true
+        @filter.retain?(@build_type_c).should be_true
+      end
+    end
+    
+    describe ExcludeNoneFilter do
+      before :each do
+        @filter = ExcludeNoneFilter.new
+      end
+
+      it "should retain everything" do
+        @filter.retain?(@build_type_a).should be_true
+        @filter.retain?(@build_type_b).should be_true
+        @filter.retain?(@build_type_c).should be_true
+      end
+    end
+    
+    describe IncludeFilter do      
+      describe "including 1 thing" do
+        before :each do
+          @filter = IncludeFilter.new "a"
+        end
+
+        it "should retain when there is a match by name" do
+          @filter.retain?(@build_type_a).should be_true
+        end
+
+        it "should not retain when there is not a match" do
+          @filter.retain?(@build_type_b).should be_false
+        end
+      end
+      
+      describe "include many things" do
+        before :each do
+          @filter = IncludeFilter.new ["a", "bt3", "non-existant"]
+        end
+
+        it "should retain when there is a match by name" do
+          @filter.retain?(@build_type_a).should be_true
+        end
+
+        it "should retain when there is a match by id" do
+          @filter.retain?(@build_type_c).should be_true
+        end
+
+        it "should not retain when there is not a match" do
+          @filter.retain?(@build_type_b).should be_false
+        end
+
+        it "should be able to report things that matched" do
+          @filter.retain?(@build_type_a)
+          @filter.hits.should == ["a"]
+        end
+
+        it "should be able to report things that didnt match" do
+          @filter.retain?(@build_type_a)
+          @filter.misses.should == ["bt3", "non-existant"]
+        end
+      end
+    end
+    
+    describe ExcludeFilter do
+      describe "excluding 1 thing" do
+        before :each do
+          @filter = ExcludeFilter.new "a"
+        end
+
+        it "should not retain when there is a match by name" do
+          @filter.retain?(@build_type_a).should be_false
+        end
+
+        it "should retain when there is not a match" do
+          @filter.retain?(@build_type_b).should be_true
+        end
+      end
+      
+      describe "exclude many things" do
+        before :each do
+          @filter = ExcludeFilter.new ["a", "bt3", "non-existant"]
+        end
+
+        it "should not retain there is a match by name" do
+          @filter.retain?(@build_type_a).should be_false
+        end
+
+        it "should not retain there is a match by id" do
+          @filter.retain?(@build_type_c).should be_false
+        end
+
+        it "should retain when there is not a match" do
+          @filter.retain?(@build_type_b).should be_true
+        end
+
+        it "should be able to report things that matched" do
+          @filter.retain?(@build_type_a)
+          @filter.hits.should == ["a"]
+        end
+
+        it "should be able to report things that didnt match" do
+          @filter.retain?(@build_type_a)
+          @filter.misses.should == ["bt3", "non-existant"]
+        end
+      end
+    end
+  end
+  
   describe Project do
     before :each do
       @bt11 = stub('bt11', :id => "bt11", :name => "project1-build1", :project_id => "project1")
       @bt12 = stub('bt12', :id => "bt12", :name => "project1-build2", :project_id => "project1")
+      @bt13 = stub('bt13', :id => "bt13", :name => "project1-build3", :project_id => "project1")
       @bt21 = stub('bt21', :id => "bt21", :name => "project2-build1", :project_id => "project2")
     
       @bt11_1 = stub('bt11_1', :id => "1", :build_type_id => "bt11")
       @bt11_2 = stub('bt11_2', :id => "2", :build_type_id => "bt11")
       @bt12_33 = stub('bt12_33', :id => "33", :build_type_id => "bt12")
+      @bt13_44 = stub('bt13_44', :id => "44", :build_type_id => "bt13")
       @bt21_666 = stub('bt21_666', :id => "666", :build_type_id => "bt21")
     
-      @tc = stub('teamcity', :build_types => [@bt11, @bt12, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt21_666])
+      @tc = stub('teamcity', :build_types => [@bt11, @bt12, @bt13, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt13_44, @bt21_666])
       @project1 = Project.new @tc, "Project 1", "project1", "http://www.example.com"
     end
   
@@ -23,17 +145,83 @@ module TeamcityRestClient
       end
     
       it "should have only those for project 1" do
-        @build_types.should == [@bt11, @bt12]
+        @build_types.should == [@bt11, @bt12, @bt13]
       end
     end
-  
+
+    describe "asking it for it's build types with filtering" do
+      describe "include" do
+        it "should match by single project name" do
+          @project1.build_types({ :include => "project1-build2" }).should == [@bt12]
+        end
+        it "should match by single project id" do
+          @project1.build_types({ :include => "bt11" }).should == [@bt11]
+        end
+        it "should match by multiple project id and name" do
+          @project1.build_types({ :include => ["bt11","project1-build2"] }).should == [@bt11, @bt12]
+        end
+      end
+      
+      describe "exclude" do
+        it "should match by single project name" do
+          @project1.build_types({ :exclude => "project1-build2" }).should == [@bt11, @bt13]
+        end
+        it "should match by single project id" do
+          @project1.build_types({ :exclude => "bt11" }).should == [@bt12, @bt13]
+        end
+        it "should match by multiple project id and name" do
+          @project1.build_types({ :exclude => ["bt11","project1-build2"] }).should == [@bt13]
+        end
+      end
+      
+      
+    end
+    
     describe "asking it for it's builds" do
       before :each do
         @builds = @project1.builds
       end
     
       it "should have only builds for project 1" do
-        @builds.should == [@bt11_1, @bt11_2, @bt12_33]
+        @builds.should == [@bt11_1, @bt11_2, @bt12_33, @bt13_44]
+      end
+    end
+    
+    describe "latest_builds" do
+      before :each do
+        @bt11.stub(:latest_build).and_return(@bt11_2)
+        @bt12.stub(:latest_build).and_return(@bt12_33)
+        @bt13.stub(:latest_build).and_return(@bt13_44)
+      end
+      
+      describe "for all builds in project" do
+        before :each do
+          @latest_builds = @project1.latest_builds
+        end
+
+        it "should get latest" do
+          @latest_builds.should == [@bt11_2, @bt12_33, @bt13_44]
+        end
+      end
+      
+      describe "with an include filter specified" do
+        before :each do
+          @latest_builds = @project1.latest_builds :include => @bt11.id
+        end
+
+        it "should get latest only for that filter" do
+          @latest_builds.should == [@bt11_2]
+        end
+      end
+      
+      describe "with an exclude filter specified" do
+        before :each do
+          @latest_builds = @project1.latest_builds :exclude => @bt11.id
+        end
+
+        it "should get latest only for that filter" do
+          @latest_builds.should == [@bt12_33, @bt13_44]
+        end
       end
     end
   end
@@ -49,12 +237,23 @@ module TeamcityRestClient
       it "should add /httpAuth to path" do
         @auth.url("/something").should == "http://auth.example.com:2233/httpAuth/something"
       end
+      
+      it "should not add /httpAuth to path when already there" do
+        @auth.url("/httpAuth/something").should == "http://auth.example.com:2233/httpAuth/something"
+      end
+      
+      it "should create query string from params" do
+        @auth.url("/overhere", {:id => "1", :name => 'betty'}).should == "http://auth.example.com:2233/httpAuth/overhere?id=1&name=betty"
+      end
     end
     
     describe "get" do
       it "should call open with http basic auth options" do
-        @auth.should_receive(:open).with("http://auth.example.com:2233/httpAuth/somethingElse", :http_basic_authentication=>[@user, @password]).and_return(@io)
-        @auth.get("/somethingElse")
+        path, options = "/something", {:id => 1}
+        url = "http://localhost:1324"
+        @auth.should_receive(:url).with(path, options).and_return url
+        @auth.should_receive(:open).with(url, :http_basic_authentication=>[@user, @password]).and_return(@io)
+        @auth.get(path, options)
       end
     end
   end
@@ -70,16 +269,40 @@ module TeamcityRestClient
       it "should create valid url" do
         @auth.url("/something").should == "http://auth.example.com:2233/something"
       end
+      
+      it "should create query string from params" do
+        @auth.url("/overhere", {:id => "2", :name => 'boo'}).should == "http://auth.example.com:2233/overhere?id=2&name=boo"
+      end
     end
     
     describe "get" do
       it "should call open with no auth options" do
-        @auth.should_receive(:open).with("http://auth.example.com:2233/somethingElse").and_return(@io)
-        @auth.get("/somethingElse")
+        path, options = "/something", {:id => 1}
+        url = "http://localhost:1324"
+        @auth.should_receive(:url).with(path, options).and_return url
+        @auth.should_receive(:open).with(url).and_return(@io)
+        @auth.get(path, options)
       end
     end
   end
-
+  
+  describe BuildType do
+    before :each do
+      @tc = mock('teamcity')
+      @id, @name, @href, @project_name, @project_id, @web_url = "bt123", "build 123", "project 1", "project1", "http://www.example.com/something"
+      @build_type = BuildType.new @tc, @id, @name, @href, @project_name, @project_id, @web_url
+    end
+    
+    describe "latest_build" do
+      before :each do
+        @build = mock('build')
+        @tc.should_receive(:builds).with(:buildType => "id:bt123", :count => 1).and_return [@build]
+      end
+      it "should ask teamcity" do
+        @build_type.latest_build.should == @build
+      end
+    end
+  end
 end
 
 describe Teamcity do
@@ -97,7 +320,7 @@ describe Teamcity do
       @tc = Teamcity.new @host, @port, @user, @password
     end
     
-    it "should create HttpBasicAuthetication" do
+    it "should create HttpBasicAuthentication" do
       @tc.authentication.should === @authentication
     end
   end
@@ -162,7 +385,7 @@ describe Teamcity do
       </html>  
 HTML
       
-      @authentication.should_receive(:get).with("/app/rest/buildTypes").and_return(fail_html)
+      @authentication.stub(:get).and_return(fail_html)
       @tc = Teamcity.new @host, @port
     end
     
@@ -173,8 +396,8 @@ HTML
   
   describe "parsing xml feeds" do
     before :each do
-      @host, @port = "tc.example.com", 1234
-      @authentication = TeamcityRestClient::Open.new @host, @port
+      @host, @port, @user, @password = "tc.example.com", 1234, "user", "password"
+      @authentication = TeamcityRestClient::HttpBasicAuthentication.new @host, @port, @user, @password
     end
     
     describe "projects" do
@@ -182,13 +405,13 @@ HTML
         xml = <<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <projects>
-  <project name="Amazon API client" id="project54" href="/app/rest/projects/id:project54"/>
-  <project name="Apache Ant" id="project28" href="/app/rest/projects/id:project28"/>
+  <project name="Amazon API client" id="project54" href="/httpAuth/app/rest/projects/id:project54"/>
+  <project name="Apache Ant" id="project28" href="/httpAuth/app/rest/projects/id:project28"/>
 </projects>        
 XML
-        @authentication.should_receive(:get).with("/app/rest/projects").and_return(xml)
-        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
-        @tc = Teamcity.new @host, @port
+        @authentication.should_receive(:get).with("/app/rest/projects", {}).and_return(xml)
+        TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
+        @tc = Teamcity.new @host, @port, @user, @password
         @projects = @tc.projects
       end
       
@@ -200,14 +423,14 @@ XML
         amazon = @projects[0]
         amazon.name.should == "Amazon API client"
         amazon.id.should == "project54"
-        amazon.href.should == "http://tc.example.com:1234/app/rest/projects/id:project54"
+        amazon.href.should == "http://tc.example.com:1234/httpAuth/app/rest/projects/id:project54"
       end
       
       it "should have ant project" do
         ant = @projects[1]
         ant.name.should == "Apache Ant"
         ant.id.should == "project28"
-        ant.href.should == "http://tc.example.com:1234/app/rest/projects/id:project28"
+        ant.href.should == "http://tc.example.com:1234/httpAuth/app/rest/projects/id:project28"
       end
     end
 
@@ -216,15 +439,15 @@ XML
         xml = <<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <buildTypes>
-  <buildType id="bt297" name="Build" href="/app/rest/buildTypes/id:bt297" 
+  <buildType id="bt297" name="Build" href="/httpAuth/app/rest/buildTypes/id:bt297" 
     projectName="Amazon API client" projectId="project54" webUrl="http://teamcity.jetbrains.com/viewType.html?buildTypeId=bt297"/>
-  <buildType id="bt296" name="Download missing jar" href="/app/rest/buildTypes/id:bt296" 
+  <buildType id="bt296" name="Download missing jar" href="/httpAuth/app/rest/buildTypes/id:bt296" 
     projectName="Amazon API client" projectId="project54" webUrl="http://teamcity.jetbrains.com/viewType.html?buildTypeId=bt296"/>
 </buildTypes>      
 XML
-        @authentication.should_receive(:get).with("/app/rest/buildTypes").and_return(xml)
-        TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
-        @tc = Teamcity.new @host, @port
+        @authentication.should_receive(:get).with("/app/rest/buildTypes", {}).and_return(xml)
+        TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
+        @tc = Teamcity.new @host, @port, @user, @password
         @build_types = @tc.build_types
       end
       
@@ -236,7 +459,7 @@ XML
         bt297 = @build_types[0]
         bt297.id.should == "bt297"
         bt297.name.should == "Build"
-        bt297.href.should == "http://tc.example.com:1234/app/rest/buildTypes/id:bt297"
+        bt297.href.should == "http://tc.example.com:1234/httpAuth/app/rest/buildTypes/id:bt297"
         bt297.project_name.should == "Amazon API client"
         bt297.project_id.should == "project54"
         bt297.web_url.should == "http://teamcity.jetbrains.com/viewType.html?buildTypeId=bt297"
@@ -246,7 +469,7 @@ XML
         bt296 = @build_types[1]
         bt296.id.should == "bt296"
         bt296.name.should == "Download missing jar"
-        bt296.href.should == "http://tc.example.com:1234/app/rest/buildTypes/id:bt296"
+        bt296.href.should == "http://tc.example.com:1234/httpAuth/app/rest/buildTypes/id:bt296"
         bt296.project_name.should == "Amazon API client"
         bt296.project_id.should == "project54"
         bt296.web_url.should == "http://teamcity.jetbrains.com/viewType.html?buildTypeId=bt296"
@@ -254,18 +477,39 @@ XML
     end
     
     describe "builds" do
+      describe "with options specified" do
+          before :each do
+            xml = <<XML
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<builds nextHref="/app/rest/builds?count=100&amp;start=100" count="100">
+    <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" href="/httpAuth/app/rest/builds/id:56264" 
+      webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"/>
+</builds>
+XML
+            @options = {:buildType => "id:bt212", :count => 1}
+            @authentication.should_receive(:get).with("/app/rest/builds", @options).and_return(xml)
+            TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
+            @tc = Teamcity.new @host, @port, @user, @password
+            @builds = @tc.builds @options
+          end
+
+          it "should have only 1 build as a result" do
+            @builds.length.should == 1
+          end
+      end
+      
       describe "TeamCity Enterprise 5.1.2" do
           before :each do
             xml = <<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <builds nextHref="/app/rest/builds?count=100&amp;start=100" count="100">
-    <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" href="/app/rest/builds/id:56264" 
+    <build id="56264" number="126" status="FAILURE" buildTypeId="bt212" href="/httpAuth/app/rest/builds/id:56264" 
       webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"/>
 </builds>
 XML
-            @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
-            TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
-            @tc = Teamcity.new @host, @port
+            @authentication.should_receive(:get).with("/app/rest/builds", {}).and_return(xml)
+            TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
+            @tc = Teamcity.new @host, @port, @user, @password
             @builds = @tc.builds
           end
 
@@ -281,7 +525,7 @@ XML
             build.success?.should == false
             build.build_type_id.should == "bt212"
             build.start_date.should == ""
-            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56264"
+            build.href.should == "http://tc.example.com:1234/httpAuth/app/rest/builds/id:56264"
             build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"
           end
       end
@@ -297,9 +541,9 @@ XML
       webUrl="http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"/>
 </builds>
 XML
-            @authentication.should_receive(:get).with("/app/rest/builds").and_return(xml)
-            TeamcityRestClient::Open.should_receive(:new).and_return(@authentication)
-            @tc = Teamcity.new @host, @port
+            @authentication.should_receive(:get).with("/app/rest/builds", {}).and_return(xml)
+            TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
+            @tc = Teamcity.new @host, @port, @user, @password
             @builds = @tc.builds
           end
 
@@ -315,7 +559,7 @@ XML
             build.success?.should == false
             build.build_type_id.should == "bt212"
             build.start_date.should == "20111021T123714+0400"
-            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56264"
+            build.href.should == "http://tc.example.com:1234/httpAuth/app/rest/builds/id:56264"
             build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56264&buildTypeId=bt212"
           end
 
@@ -327,7 +571,7 @@ XML
             build.success?.should == true
             build.build_type_id.should == "bt213"
             build.start_date.should == "20111021T120639+0400"
-            build.href.should == "http://tc.example.com:1234/app/rest/builds/id:56262"
+            build.href.should == "http://tc.example.com:1234/httpAuth/app/rest/builds/id:56262"
             build.web_url.should == "http://teamcity.jetbrains.com/viewLog.html?buildId=56262&buildTypeId=bt213"
           end
         end

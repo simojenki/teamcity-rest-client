@@ -4,9 +4,91 @@ require 'set'
 
 module TeamcityRestClient
   
-  Project = Struct.new(:teamcity, :name, :id, :href) do
-    def build_types
-      teamcity.build_types.find_all { |bt| bt.project_id == id }
+  class Filter
+  end
+  
+  class IncludeAllFilter
+    def retain? thing
+      true
+    end
+  end
+  
+  class ExcludeNoneFilter
+    def retain? thing
+      true
+    end
+  end
+  
+  class IncludeFilter
+    def initialize to_retain
+      @misses = [to_retain].flatten
+      @hits = []
+    end
+    
+    def retain? build_type
+      puts "looking for match on #{build_type.id} or #{build_type.name} from includes #{@misses}"
+      match = @misses.delete(build_type.id) || @misses.delete(build_type.name)
+      if match
+        @hits << match
+        puts "hit with match #{match}"
+        true
+      else
+        puts "miss"
+        false
+      end
+    end
+    
+    def hits
+      @hits      
+    end
+    
+    def misses
+      @misses
+    end
+  end
+  
+  class ExcludeFilter
+    def initialize to_exclude
+      @misses = [to_exclude].flatten
+      @hits = []
+    end
+    
+    def retain? build_type
+      match = @misses.delete(build_type.id) || @misses.delete(build_type.name)
+      if match
+        @hits << match
+        false
+      else
+        true
+      end
+    end
+    
+    def hits
+      @hits      
+    end
+    
+    def misses
+      @misses
+    end
+  end
+  
+  class Project
+    
+    attr_reader :teamcity, :name, :id, :href
+    
+    def initialize teamcity, name, id, href
+      @teamcity, @name, @id, @href = teamcity, name, id, href
+    end
+    
+    def build_types filter = {}
+      including = filter.has_key?(:include) ? IncludeFilter.new(filter.delete(:include)) : IncludeAllFilter.new
+      excluding = filter.has_key?(:exclude) ? ExcludeFilter.new(filter.delete(:exclude)) : ExcludeNoneFilter.new
+      build_types_for_project = teamcity.build_types.find_all { |bt| bt.project_id == id }
+      build_types_for_project.find_all { |bt| including.retain?(bt) && excluding.retain?(bt) }
+    end
+    
+    def latest_builds filter = {}
+      build_types(filter).collect(&:latest_build)
     end
     
     def builds
@@ -15,25 +97,40 @@ module TeamcityRestClient
     end
   end
   
-  BuildType = Struct.new(:id, :name, :href, :project_name, :project_id, :web_url)
+  BuildType = Struct.new(:teamcity, :id, :name, :href, :project_name, :project_id, :web_url) do
+    #   httpAuth/app/rest/builds?buildType=id:bt107&count=1
+    def latest_build
+      teamcity.builds(:buildType => "id:#{id}", :count => 1)[0]
+    end
+  end
   
-  Build = Struct.new(:id, :number, :status, :build_type_id, :start_date, :href, :web_url) do
+  Build = Struct.new(:teamcity, :id, :number, :status, :build_type_id, :start_date, :href, :web_url) do
     def success?
       status == :SUCCESS
     end
   end
+  
+  class Authentication
+    def query_string_for params
+      pairs = []
+      params.each_pair { |k,v| pairs << "#{k}=#{v}" }
+      pairs.join("&")
+    end
+  end
 
-  class HttpBasicAuthentication
+  class HttpBasicAuthentication < Authentication
     def initialize host, port, user, password
       @host, @port, @user, @password = host, port, user, password
     end
 
-    def get path
-      open(url(path), :http_basic_authentication => [@user, @password]).read
+    def get path, params = {}
+      open(url(path, params), :http_basic_authentication => [@user, @password]).read
     end
 
-    def url path
-      "http://#{@host}:#{@port}/httpAuth#{path}"
+    def url path, params = {}
+      auth_path = path.start_with?("/httpAuth/") ? path : "/httpAuth#{path}"
+      query_string = !params.empty? ? "?#{query_string_for(params)}" : ""
+      "http://#{@host}:#{@port}#{auth_path}#{query_string}"
     end  
     
     def to_s
@@ -41,17 +138,18 @@ module TeamcityRestClient
     end
   end
 
-  class Open
+  class Open < Authentication
     def initialize host, port
       @host, @port = host, port
     end
 
-    def get path
-      open(url(path)).read
+    def get path, params = {}
+      open(url(path, params)).read
     end
 
-    def url path
-      "http://#{@host}:#{@port}#{path}"
+    def url path, params = {}
+      query_string = !params.empty? ? "?#{query_string_for(params)}" : ""
+      "http://#{@host}:#{@port}#{path}#{query_string}"
     end
     
     def to_s
@@ -99,18 +197,18 @@ class Teamcity
   
   def build_types
     doc(get('/app/rest/buildTypes')).elements.collect('//buildType') do |e| 
-      TeamcityRestClient::BuildType.new(e.av("id"), e.av("name"), url(e.av("href")), e.av('projectName'), e.av('projectId'), e.av('webUrl'))
+      TeamcityRestClient::BuildType.new(self, e.av("id"), e.av("name"), url(e.av("href")), e.av('projectName'), e.av('projectId'), e.av('webUrl'))
     end
   end
   
-  def builds
-    doc(get('/app/rest/builds').gsub(/&buildTypeId/,'&amp;buildTypeId')).elements.collect('//build') do |e|
-      TeamcityRestClient::Build.new(e.av('id'), e.av('number'), e.av('status').to_sym, e.av('buildTypeId'), e.av_or('startDate', ''), url(e.av('href')), e.av('webUrl'))
+  def builds options = {}
+    doc(get('/app/rest/builds', options).gsub(/&buildTypeId/,'&amp;buildTypeId')).elements.collect('//build') do |e|
+      TeamcityRestClient::Build.new(self, e.av('id'), e.av('number'), e.av('status').to_sym, e.av('buildTypeId'), e.av_or('startDate', ''), url(e.av('href')), e.av('webUrl'))
     end
   end
   
   def to_s
-    "Teamcity @ http://#{host}:#{port}"
+    "Teamcity @ #{url("/")}"
   end
 
   private
@@ -118,8 +216,8 @@ class Teamcity
     REXML::Document.new string
   end
 
-  def get path
-    result = @authentication.get(path)
+  def get path, params = {}
+    result = @authentication.get(path, params)
     raise "Teamcity returned html, perhaps you need to use authentication??" if result =~ /.*<html.*<\/html>.*/im
     result
   end
