@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = "teamcity-rest-client"
-  s.version = "0.2.0"
+  s.version = "0.2.2"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["simon"]
-  s.date = "2011-10-27"
+  s.date = "2011-11-03"
   s.description = "Teamcity rest api client (readonly)"
   s.email = "simojenki@gmail.com"
   s.extra_rdoc_files = [
