@@ -119,6 +119,7 @@ module TeamcityRestClient
       @bt11 = stub('bt11', :id => "bt11", :name => "project1-build1", :project_id => "project1")
       @bt12 = stub('bt12', :id => "bt12", :name => "project1-build2", :project_id => "project1")
       @bt13 = stub('bt13', :id => "bt13", :name => "project1-build3", :project_id => "project1")
+      @bt14 = stub('bt14', :id => "bt14", :name => "project1-build4-never-been-built", :project_id => "project1")
       @bt21 = stub('bt21', :id => "bt21", :name => "project2-build1", :project_id => "project2")
     
       @bt11_1 = stub('bt11_1', :id => "1", :build_type_id => "bt11")
@@ -127,7 +128,7 @@ module TeamcityRestClient
       @bt13_44 = stub('bt13_44', :id => "44", :build_type_id => "bt13")
       @bt21_666 = stub('bt21_666', :id => "666", :build_type_id => "bt21")
     
-      @tc = stub('teamcity', :build_types => [@bt11, @bt12, @bt13, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt13_44, @bt21_666])
+      @tc = mock('teamcity', :build_types => [@bt11, @bt12, @bt13, @bt14, @bt21], :builds => [@bt11_1, @bt11_2, @bt12_33, @bt13_44, @bt21_666])
       @project1 = Project.new @tc, "Project 1", "project1", "http://www.example.com"
     end
   
@@ -137,7 +138,7 @@ module TeamcityRestClient
       end
     
       it "should have only those for project 1" do
-        @build_types.should == [@bt11, @bt12, @bt13]
+        @build_types.should == [@bt11, @bt12, @bt13, @bt14]
       end
     end
 
@@ -156,13 +157,13 @@ module TeamcityRestClient
       
       describe "exclude" do
         it "should match by single project name" do
-          @project1.build_types({ :exclude => "project1-build2" }).should == [@bt11, @bt13]
+          @project1.build_types({ :exclude => "project1-build2" }).should == [@bt11, @bt13, @bt14]
         end
         it "should match by single project id" do
-          @project1.build_types({ :exclude => "bt11" }).should == [@bt12, @bt13]
+          @project1.build_types({ :exclude => "bt11" }).should == [@bt12, @bt13, @bt14]
         end
         it "should match by multiple project id and name" do
-          @project1.build_types({ :exclude => ["bt11","project1-build2"] }).should == [@bt13]
+          @project1.build_types({ :exclude => ["bt11","project1-build2"] }).should == [@bt13, @bt14]
         end
       end
       
@@ -186,12 +187,27 @@ module TeamcityRestClient
     end
     
     describe "asking it for it's builds" do
-      before :each do
-        @builds = @project1.builds
+      describe 'with no options' do
+        before :each do
+          @tc.should_receive(:builds).with({}).and_return([@bt11_1, @bt11_2, @bt12_33, @bt13_44])
+          @builds = @project1.builds
+        end
+
+        it "should have only builds for project 1" do
+          @builds.should == [@bt11_1, @bt11_2, @bt12_33, @bt13_44]
+        end
       end
-    
-      it "should have only builds for project 1" do
-        @builds.should == [@bt11_1, @bt11_2, @bt12_33, @bt13_44]
+      
+      describe "with some other options" do
+        before :each do
+          @options = {:running => true}
+          @tc.should_receive(:builds).with(@options).and_return([@bt11_1, @bt11_2, @bt12_33, @bt13_44])
+          @builds = @project1.builds @options
+        end
+        
+        it 'should pass through the options to tc' do
+          @builds.should == [@bt11_1, @bt11_2, @bt12_33, @bt13_44]
+        end
       end
     end
     
@@ -200,6 +216,7 @@ module TeamcityRestClient
         @bt11.stub(:latest_build).and_return(@bt11_2)
         @bt12.stub(:latest_build).and_return(@bt12_33)
         @bt13.stub(:latest_build).and_return(@bt13_44)
+        @bt14.stub(:latest_build).and_return(nil)
       end
       
       describe "for all builds in project" do
@@ -302,12 +319,36 @@ module TeamcityRestClient
     end
     
     describe "latest_build" do
+      describe "when there has been at least 1 build" do
+        before :each do
+          @build = mock('build')
+          @tc.should_receive(:builds).with(:buildType => "id:bt123", :count => 1).and_return [@build]
+        end
+        
+        it "should ask teamcity, and return the single build" do
+          @build_type.latest_build.should == @build
+        end
+      end
+      
+      describe "when there hasnt ever been a build" do
+        before :each do
+          @tc.should_receive(:builds).with(:buildType => "id:bt123", :count => 1).and_return []
+        end
+        
+        it "should ask teamcity, and get no build back" do
+          @build_type.latest_build.should   be_nil
+        end
+      end
+    end
+    
+    describe "builds" do
       before :each do
-        @build = mock('build')
-        @tc.should_receive(:builds).with(:buildType => "id:bt123", :count => 1).and_return [@build]
+        @build1 = mock('build1')
+        @build2 = mock('build2')
+        @tc.should_receive(:builds).with({:buildType => "id:bt123", :running => true, :somethingelse => 'here'}).and_return [@build1, @build2]
       end
       it "should ask teamcity" do
-        @build_type.latest_build.should == @build
+        @build_type.builds({ :running => true, :somethingelse => 'here' }).should == [@build1, @build2]
       end
     end
   end
@@ -485,6 +526,18 @@ XML
     end
     
     describe "builds" do
+      describe "when there hasnt been any builds for configuration" do
+        before :each do
+          xml = <<XML
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<builds count="0"/>          
+XML
+        end
+        
+        pending "it should return an empty array" 
+        
+      end
+      
       describe "with options specified" do
           before :each do
             xml = <<XML

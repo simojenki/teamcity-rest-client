@@ -73,19 +73,21 @@ module TeamcityRestClient
     end
     
     def latest_builds filter = {}
-      build_types(filter).collect(&:latest_build)
+      build_types(filter).collect(&:latest_build).reject(&:nil?)
     end
     
-    def builds
+    def builds options = {}
       bt_ids = Set.new(build_types.collect(&:id))
-      teamcity.builds.find_all { |b| bt_ids.include? b.build_type_id }
+      teamcity.builds(options).find_all { |b| bt_ids.include? b.build_type_id }
     end
   end
   
   BuildType = Struct.new(:teamcity, :id, :name, :href, :project_name, :project_id, :web_url) do
-    #   httpAuth/app/rest/builds?buildType=id:bt107&count=1
+    def builds options = {}
+      teamcity.builds({:buildType => "id:#{id}"}.merge(options))
+    end
     def latest_build
-      teamcity.builds(:buildType => "id:#{id}", :count => 1)[0]
+      builds(:count => 1)[0]
     end
   end
   
