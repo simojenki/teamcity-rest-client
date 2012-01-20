@@ -253,8 +253,9 @@ module TeamcityRestClient
 
   describe HttpBasicAuthentication do
     before :each do
+      @openuri_options = { :proxy => 'http://proxy:9999' }
       @host, @port, @user, @password = "auth.example.com", 2233, "john", "wayne"
-      @auth = HttpBasicAuthentication.new @host, @port, @user, @password
+      @auth = HttpBasicAuthentication.new @host, @port, @user, @password, @openuri_options
       @io = stub(:read => "<xml/>")
     end
     
@@ -273,11 +274,11 @@ module TeamcityRestClient
     end
     
     describe "get" do
-      it "should call open with http basic auth options" do
+      it "should call open with http basic auth options, and openuri option" do
         path, options = "/something", {:id => 1}
         url = "http://localhost:1324"
         @auth.should_receive(:url).with(path, options).and_return url
-        @auth.should_receive(:open).with(url, :http_basic_authentication=>[@user, @password]).and_return(@io)
+        @auth.should_receive(:open).with(url, {:http_basic_authentication=>[@user, @password], :proxy => 'http://proxy:9999'}).and_return(@io)
         @auth.get(path, options)
       end
     end
@@ -286,7 +287,8 @@ module TeamcityRestClient
   describe Open do
     before :each do
       @host, @port = "auth.example.com", 2233
-      @auth = Open.new @host, @port
+      @openuri_options = { :proxy => 'http://localhost:1234' }
+      @auth = Open.new @host, @port, @openuri_options
       @io = stub(:read => "<xml/>")
     end
     
@@ -305,7 +307,7 @@ module TeamcityRestClient
         path, options = "/something", {:id => 1}
         url = "http://localhost:1324"
         @auth.should_receive(:url).with(path, options).and_return url
-        @auth.should_receive(:open).with(url).and_return(@io)
+        @auth.should_receive(:open).with(url, @openuri_options).and_return(@io)
         @auth.get(path, options)
       end
     end
@@ -364,12 +366,13 @@ describe Teamcity do
   describe "specifying username and password" do
     before :each do
       @host, @port, @user, @password = "authtc.example.com", 8877, "bob", "marley"
+      @options = {:user => @user, :password => @password, :proxy => 'dog'}
       @authentication = mock('authentication')
-      TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).with(@host, @port, @user, @password).and_return(@authentication)
-      @tc = Teamcity.new @host, @port, @user, @password
+      TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).with(@host, @port, @user, @password, @options).and_return(@authentication)
+      @tc = Teamcity.new @host, @port, @options
     end
     
-    it "should create HttpBasicAuthentication" do
+    it "should create HttpBasicAuthentication, passing through the options" do
       @tc.authentication.should === @authentication
     end
   end
@@ -377,12 +380,13 @@ describe Teamcity do
   describe "specifying no username and password" do
     before :each do
       @host, @port = "authtc.example.com", 8877
+      @options = { :proxy => 'cat' }
       @authentication = mock('authentication')
-      TeamcityRestClient::Open.should_receive(:new).with(@host, @port).and_return(@authentication)
-      @tc = Teamcity.new @host, @port
+      TeamcityRestClient::Open.should_receive(:new).with(@host, @port, @options).and_return(@authentication)
+      @tc = Teamcity.new @host, @port, @options
     end
     
-    it "should create HttpBasicAuthetication" do
+    it "should create Open authentication" do
       @tc.authentication.should === @authentication
     end
   end
@@ -460,7 +464,7 @@ HTML
 XML
         @authentication.should_receive(:get).with("/app/rest/projects", {}).and_return(xml)
         TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
-        @tc = Teamcity.new @host, @port, @user, @password
+        @tc = Teamcity.new @host, @port, { :user => @user, :password => @password }
         @projects = @tc.projects
       end
       
@@ -496,7 +500,7 @@ XML
 XML
         @authentication.should_receive(:get).with("/app/rest/buildTypes", {}).and_return(xml)
         TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
-        @tc = Teamcity.new @host, @port, @user, @password
+        @tc = Teamcity.new @host, @port, :user => @user, :password => @password
         @build_types = @tc.build_types
       end
       
@@ -550,7 +554,7 @@ XML
             @options = {:buildType => "id:bt212", :count => 1}
             @authentication.should_receive(:get).with("/app/rest/builds", @options).and_return(xml)
             TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
-            @tc = Teamcity.new @host, @port, @user, @password
+            @tc = Teamcity.new @host, @port, :user => @user, :password => @password
             @builds = @tc.builds @options
           end
 
@@ -570,7 +574,7 @@ XML
 XML
             @authentication.should_receive(:get).with("/app/rest/builds", {}).and_return(xml)
             TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
-            @tc = Teamcity.new @host, @port, @user, @password
+            @tc = Teamcity.new @host, @port, :user => @user, :password => @password
             @builds = @tc.builds
           end
 
@@ -604,7 +608,7 @@ XML
 XML
             @authentication.should_receive(:get).with("/app/rest/builds", {}).and_return(xml)
             TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).and_return(@authentication)
-            @tc = Teamcity.new @host, @port, @user, @password
+            @tc = Teamcity.new @host, @port, :user => @user, :password => @password
             @builds = @tc.builds
           end
 

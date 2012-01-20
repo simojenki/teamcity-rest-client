@@ -98,6 +98,15 @@ module TeamcityRestClient
   end
   
   class Authentication
+  
+  	def initialize openuri_options
+  		@openuri_options = openuri_options
+  	end 
+
+    def get path, params = {}
+      open(url(path, params), @openuri_options).read
+    end
+
     def query_string_for params
       pairs = []
       params.each_pair { |k,v| pairs << "#{k}=#{v}" }
@@ -106,12 +115,10 @@ module TeamcityRestClient
   end
 
   class HttpBasicAuthentication < Authentication
-    def initialize host, port, user, password
+  
+    def initialize host, port, user, password, openuri_options = {}
+    	super({:http_basic_authentication => [user, password]}.merge(openuri_options))
       @host, @port, @user, @password = host, port, user, password
-    end
-
-    def get path, params = {}
-      open(url(path, params), :http_basic_authentication => [@user, @password]).read
     end
 
     def url path, params = {}
@@ -126,12 +133,10 @@ module TeamcityRestClient
   end
 
   class Open < Authentication
-    def initialize host, port
+  
+    def initialize host, port, options = {}
+    	super(options)
       @host, @port = host, port
-    end
-
-    def get path, params = {}
-      open(url(path, params)).read
     end
 
     def url path, params = {}
@@ -160,12 +165,12 @@ class Teamcity
   
   attr_reader :host, :port, :authentication
   
-  def initialize host, port, user = nil, password = nil
+  def initialize host, port, options = {}
     @host, @port = host, port
-    if user != nil && password != nil
-      @authentication = TeamcityRestClient::HttpBasicAuthentication.new host, port, user, password
+    if options[:user] && options[:password]
+      @authentication = TeamcityRestClient::HttpBasicAuthentication.new(host, port, options[:user], options[:password], options)
     else
-      @authentication = TeamcityRestClient::Open.new host, port
+      @authentication = TeamcityRestClient::Open.new(host, port, options)
     end
   end
   
