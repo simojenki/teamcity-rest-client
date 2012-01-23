@@ -366,10 +366,10 @@ describe Teamcity do
   describe "specifying username and password" do
     before :each do
       @host, @port, @user, @password = "authtc.example.com", 8877, "bob", "marley"
-      @options = {:user => @user, :password => @password, :proxy => 'dog'}
+      @proxy = 'http://dog:8080'
       @authentication = mock('authentication')
-      TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).with(@host, @port, @user, @password, @options).and_return(@authentication)
-      @tc = Teamcity.new @host, @port, @options
+      TeamcityRestClient::HttpBasicAuthentication.should_receive(:new).with(@host, @port, @user, @password, { :proxy => @proxy }).and_return(@authentication)
+      @tc = Teamcity.new @host, @port, :user => @user, :password => @password, :proxy => @proxy
     end
     
     it "should create HttpBasicAuthentication, passing through the options" do

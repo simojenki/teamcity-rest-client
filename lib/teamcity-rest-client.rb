@@ -168,7 +168,7 @@ class Teamcity
   def initialize host, port, options = {}
     @host, @port = host, port
     if options[:user] && options[:password]
-      @authentication = TeamcityRestClient::HttpBasicAuthentication.new(host, port, options[:user], options[:password], options)
+      @authentication = TeamcityRestClient::HttpBasicAuthentication.new(host, port, options.delete(:user), options.delete(:password), options)
     else
       @authentication = TeamcityRestClient::Open.new(host, port, options)
     end
